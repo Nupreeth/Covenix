@@ -1,0 +1,7 @@
+pdfplumber
+pytesseract
+sentence-transformers
+faiss-cpu
+fastapi
+uvicorn
+streamlit
