@@ -1,3 +1,9 @@
+import os
+import sys
+
+if __name__ == "__main__" and __package__ is None:
+    sys.path.append(os.path.dirname(os.path.dirname(__file__)))
+
 from agents.retrieval_agent import RetrievalAgent
 from agents.reasoning_agent import ReasoningAgent
 from agents.safety_agent import SafetyAgent
