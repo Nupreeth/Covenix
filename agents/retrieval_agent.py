@@ -8,7 +8,13 @@ class RetrievalAgent:
 
     def _ensure_ready(self):
         try:
-            self.store._get_index()
+            index = self.store._get_index()
+            test_vec = (
+                self.store.model.encode(["rent"]).astype("float32")[0].tolist()
+            )
+            results = index.query(vector=test_vec, top_k=1)
+            if not results:
+                self.store.build_index()
         except Exception:
             self.store.build_index()
 

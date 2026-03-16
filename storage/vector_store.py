@@ -72,6 +72,10 @@ class VectorStore:
         try:
             self.index = self.client.get_index(name=self.index_name)
         except Exception:
+            try:
+                self.client.delete_index(name=self.index_name)
+            except Exception:
+                pass
             precision = (
                 getattr(Precision, "INT8D", None)
                 or getattr(Precision, "INT8", None)
