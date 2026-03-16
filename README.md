@@ -1,12 +1,12 @@
 # Covenix
 
-Endee-powered semantic retrieval for rental agreement clauses.
+Endee-powered semantic search for rental agreement clauses.
 
 ## Project Overview
-Legal agreements are long and dense. Covenix builds a fast semantic search layer on top of rental agreements so users can ask questions and retrieve the most relevant clauses with high precision.
+Legal agreements are long and dense. Covenix adds a fast semantic search layer on top of rental agreements so users can ask questions in plain English and retrieve the most relevant clauses with evidence.
 
 ## Problem Statement
-Given a rental agreement, find the clauses that best answer a user's query (e.g., deposit, rent, notice period) without manual scanning.
+Given rental agreements, retrieve the clauses that best answer a user's query (e.g., deposit, rent, notice period) without manual scanning.
 
 ## System Design
 1. Document processing
@@ -47,6 +47,13 @@ Endee is the vector database for this project. Each clause is stored as a vector
 The search pipeline queries Endee with a query embedding and applies filters to improve precision.
 
 ## Setup
+### Quick Start (1–2 minutes)
+```bash
+docker compose -f ../../docker-compose.yml up -d
+pip install -r requirements.txt
+python agents/orchestrator.py
+```
+
 ### Prerequisites
 - Python 3.9+
 - Docker + Docker Compose (for local Endee server)
@@ -84,6 +91,12 @@ Then run:
 docker compose up -d
 ```
 
+If you are running from this folder instead of the repo root, use:
+
+```bash
+docker compose -f ../../docker-compose.yml up -d
+```
+
 ### 2. Install dependencies
 
 ```bash
@@ -91,7 +104,7 @@ pip install -r requirements.txt
 ```
 
 ### 3. Prepare clause chunks
-Option A: Use the sample dataset:
+Option A: Use the sample dataset (fastest):
 
 ```bash
 python storage/vector_store.py
@@ -132,8 +145,7 @@ python agents/orchestrator.py
 ```
 
 ## Screenshot
-Add a screenshot of the CLI or API response.
-Recommended path: `docs/screenshot.png` (place the file there).
+CLI run captured below for quick validation.
 
 ![Covenix Screenshot](docs/screenshot.png)
 
