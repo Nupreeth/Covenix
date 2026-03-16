@@ -1,31 +1,95 @@
 import json
 import os
-from typing import List, Dict
+from typing import List, Dict, Optional, Iterable
 
-import faiss
 import numpy as np
 from sentence_transformers import SentenceTransformer
+from endee import Endee, Precision
+from endee.schema import VectorItem
+
+
+if not hasattr(VectorItem, "get"):
+    VectorItem.get = lambda self, key, default=None: getattr(self, key, default)
 
 
 CHUNKS_PATH = "data/chunks/clause_chunks.json"
-INDEX_PATH = "storage/faiss.index"
-META_PATH = "storage/metadata.json"
+SAMPLE_PATH = "sample_data/clause_chunks.json"
 
-os.makedirs("storage", exist_ok=True)
+DEFAULT_INDEX_NAME = "covenix_clauses"
+MAX_UPSERT_BATCH = 1000
 
 
 class VectorStore:
-    def __init__(self, model_name: str = "all-MiniLM-L6-v2"):
+    def __init__(
+        self,
+        model_name: str = "all-MiniLM-L6-v2",
+        index_name: Optional[str] = None,
+        base_url: Optional[str] = None,
+        auth_token: Optional[str] = None,
+    ):
         self.model = SentenceTransformer(model_name)
+
+        token = auth_token or os.getenv("ENDEE_AUTH_TOKEN")
+        self.client = Endee(token=token) if token else Endee()
+
+        base_url = base_url or os.getenv("ENDEE_BASE_URL")
+        if base_url:
+            self.client.set_base_url(base_url)
+
+        raw_name = index_name or os.getenv("ENDEE_INDEX_NAME", DEFAULT_INDEX_NAME)
+        self.index_name = raw_name.replace("-", "_")
         self.index = None
-        self.metadata = []
 
     # -----------------------------
     # Load Clause Data
     # -----------------------------
     def load_clauses(self) -> List[Dict]:
-        with open(CHUNKS_PATH, "r", encoding="utf-8") as f:
+        if os.path.exists(CHUNKS_PATH):
+            path = CHUNKS_PATH
+        elif os.path.exists(SAMPLE_PATH):
+            path = SAMPLE_PATH
+        else:
+            raise FileNotFoundError(
+                "No clause data found. Generate with agents/document_agent.py "
+                "or use sample_data/clause_chunks.json."
+            )
+
+        with open(path, "r", encoding="utf-8") as f:
             return json.load(f)
+
+    # -----------------------------
+    # Index Helpers
+    # -----------------------------
+    def _get_index(self):
+        if self.index is None:
+            self.index = self.client.get_index(name=self.index_name)
+        return self.index
+
+    def _ensure_index(self, dimension: int):
+        if self.index is not None:
+            return self.index
+
+        try:
+            self.index = self.client.get_index(name=self.index_name)
+        except Exception:
+            precision = (
+                getattr(Precision, "INT8D", None)
+                or getattr(Precision, "INT8", None)
+                or Precision.FLOAT32
+            )
+            self.client.create_index(
+                name=self.index_name,
+                dimension=dimension,
+                space_type="cosine",
+                precision=precision,
+            )
+            self.index = self.client.get_index(name=self.index_name)
+
+        return self.index
+
+    def _chunk(self, items: List[Dict], size: int) -> Iterable[List[Dict]]:
+        for i in range(0, len(items), size):
+            yield items[i:i + size]
 
     # -----------------------------
     # Build Vector Index
@@ -36,30 +100,27 @@ class VectorStore:
 
         print("Embedding clauses...")
         embeddings = self.model.encode(texts, show_progress_bar=True)
-        embeddings = np.array(embeddings).astype("float32")
+        embeddings = np.asarray(embeddings, dtype="float32")
 
         dim = embeddings.shape[1]
-        self.index = faiss.IndexFlatL2(dim)
-        self.index.add(embeddings)
+        index = self._ensure_index(dim)
 
-        self.metadata = clauses
+        vectors = []
+        for i, clause in enumerate(clauses):
+            vectors.append(
+                {
+                    "id": f"{clause['document']}:{i}",
+                    "vector": embeddings[i].tolist(),
+                    "meta": clause,
+                    "filter": {"clause_type": clause["clause_type"]},
+                }
+            )
 
-        faiss.write_index(self.index, INDEX_PATH)
-        with open(META_PATH, "w", encoding="utf-8") as f:
-            json.dump(self.metadata, f, indent=2)
+        print(f"Upserting {len(vectors)} vectors to Endee...")
+        for batch in self._chunk(vectors, MAX_UPSERT_BATCH):
+            index.upsert(batch)
 
-        print(f"Vector index built with {len(clauses)} clauses")
-
-    # -----------------------------
-    # Load Existing Index
-    # -----------------------------
-    def load_index(self):
-        if not os.path.exists(INDEX_PATH) or not os.path.exists(META_PATH):
-            raise FileNotFoundError("Vector index not found. Run build_index() first.")
-
-        self.index = faiss.read_index(INDEX_PATH)
-        with open(META_PATH, "r", encoding="utf-8") as f:
-            self.metadata = json.load(f)
+        print(f"Vector index ready with {len(vectors)} clauses")
 
     # -----------------------------
     # Detect Query Intent
@@ -83,62 +144,45 @@ class VectorStore:
         return "other"
 
     # -----------------------------
-    # Hybrid Search
+    # Semantic Search
     # -----------------------------
     def search(self, query: str, top_k: int = 5) -> List[Dict]:
-
-        if self.index is None:
-            self.load_index()
-
         query_type = self.detect_query_type(query)
 
-        # Step 1: Filter clauses by detected type
+        query_embedding = self.model.encode([query]).astype("float32")[0].tolist()
+        index = self._get_index()
+
+        search_kwargs = {
+            "vector": query_embedding,
+            "top_k": top_k,
+        }
+
         if query_type != "other":
-            filtered_indices = [
-                i for i, m in enumerate(self.metadata)
-                if m["clause_type"] == query_type
-            ]
-        else:
-            filtered_indices = list(range(len(self.metadata)))
+            search_kwargs["filter"] = [{"clause_type": {"$eq": query_type}}]
 
-        # Fallback if no match
-        if not filtered_indices:
-            filtered_indices = list(range(len(self.metadata)))
+        results = index.query(**search_kwargs)
 
-        # Step 2: Embed only filtered clauses
-        filtered_texts = [self.metadata[i]["text"] for i in filtered_indices]
-        filtered_embeddings = self.model.encode(filtered_texts).astype("float32")
+        formatted = []
+        for item in results:
+            meta = item.get("meta", {})
+            meta = dict(meta)
+            meta["similarity"] = item.get("similarity")
+            formatted.append(meta)
 
-        # Step 3: Embed query
-        query_embedding = self.model.encode([query]).astype("float32")
-
-        # Step 4: Temporary FAISS index
-        temp_index = faiss.IndexFlatL2(filtered_embeddings.shape[1])
-        temp_index.add(filtered_embeddings)
-
-        distances, indices = temp_index.search(query_embedding, top_k)
-
-        # Step 5: Map back to original metadata
-        results = []
-        for idx in indices[0]:
-            original_index = filtered_indices[idx]
-            results.append(self.metadata[original_index])
-
-        return results
+        return formatted
 
 
 # -----------------------------
 # CLI Test
 # -----------------------------
 if __name__ == "__main__":
-
     store = VectorStore()
 
-    # Build only if index doesn't exist
-    if not os.path.exists(INDEX_PATH):
+    try:
+        store._get_index()
+    except Exception:
+        print("Index not found. Building a new index in Endee...")
         store.build_index()
-    else:
-        store.load_index()
 
     while True:
         query = input("\nEnter your query (or type 'exit'): ")
@@ -149,4 +193,4 @@ if __name__ == "__main__":
 
         print("\nTop Results:")
         for r in results:
-            print(f"- [{r['clause_type']}] {r['text'][:200]}...\n")
+            print(f"- [{r.get('clause_type')}] {r.get('text', '')[:200]}...\n")

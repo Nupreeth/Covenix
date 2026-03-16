@@ -1,0 +1,52 @@
+[
+  {
+    "document": "sample_lease.docx",
+    "text": "The monthly rent shall be INR 18,000 payable on or before the 5th of each month.",
+    "clause_type": "rent"
+  },
+  {
+    "document": "sample_lease.docx",
+    "text": "A security deposit equivalent to two months of rent is due at signing and will be refunded at move-out subject to deductions.",
+    "clause_type": "deposit"
+  },
+  {
+    "document": "sample_lease.docx",
+    "text": "The lock-in period is 6 months during which neither party may terminate without mutual consent.",
+    "clause_type": "lock_in"
+  },
+  {
+    "document": "sample_lease.docx",
+    "text": "Either party may terminate this agreement by providing 30 days written notice.",
+    "clause_type": "termination"
+  },
+  {
+    "document": "sample_lease.docx",
+    "text": "The tenant is responsible for routine maintenance and minor repairs below INR 1,000.",
+    "clause_type": "maintenance"
+  },
+  {
+    "document": "sample_lease.docx",
+    "text": "The landlord must provide a 24-hour notice before entering the premises for inspection.",
+    "clause_type": "notice"
+  },
+  {
+    "document": "sample_lease.docx",
+    "text": "Utilities such as electricity and water will be paid by the tenant directly to the providers.",
+    "clause_type": "other"
+  },
+  {
+    "document": "sample_lease.docx",
+    "text": "Late payment of rent will incur a penalty of INR 100 per day until cleared.",
+    "clause_type": "rent"
+  },
+  {
+    "document": "sample_lease.docx",
+    "text": "If the tenant vacates early, the security deposit may be adjusted against unpaid rent or damages.",
+    "clause_type": "deposit"
+  },
+  {
+    "document": "sample_lease.docx",
+    "text": "This agreement is governed by the laws of India and any disputes shall be subject to Bengaluru jurisdiction.",
+    "clause_type": "other"
+  }
+]

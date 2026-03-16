@@ -9,6 +9,7 @@ __pycache__/
 /data/raw/
 /data/processed/
 /data/chunks/
+endee-data/
 
 # Vector store artifacts
 /storage/*.index
