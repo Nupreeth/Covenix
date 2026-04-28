@@ -149,6 +149,11 @@ CLI run captured below for quick validation.
 
 ![Covenix Screenshot](docs/screenshot.png)
 
+## Smoke Tests
+
+For a quick retrieval-quality sanity check, see `docs/NOTES.md` for a curated query set
+and a lightweight evaluation checklist.
+
 ## Results
 Example output using the bundled sample data:
 
